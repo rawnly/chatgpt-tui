@@ -39,7 +39,7 @@ async fn main() -> color_eyre::Result<()> {
     let app = App::default();
     let tick_rate = Duration::from_millis(250);
 
-    run_app(&mut terminal, app, tick_rate).await?;
+    let res = run_app(&mut terminal, app, tick_rate).await;
 
     disable_raw_mode()?;
     execute!(
@@ -49,6 +49,10 @@ async fn main() -> color_eyre::Result<()> {
     )?;
     terminal.show_cursor()?;
 
+    if let Err(e) = res {
+        eprintln!("{}", e);
+    }
+
     Ok(())
 }
 
@@ -56,7 +60,7 @@ async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     tick_rate: Duration,
-) -> color_eyre::Result<()> {
+) -> anyhow::Result<()> {
     app.chats.select_first();
 
     let mut last_tick = Instant::now();

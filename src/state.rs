@@ -109,7 +109,7 @@ impl App {
         }
     }
 
-    pub async fn dispatch(&mut self, action: Action) -> color_eyre::Result<()> {
+    pub async fn dispatch(&mut self, action: Action) -> anyhow::Result<()> {
         match &self.focus {
             None => match self.section {
                 Section::Chats if matches!(action, Action::Enter) => {
@@ -164,7 +164,9 @@ impl App {
                         }
                         Some(Modal::RenameChat) => {
                             let title = &self.modal_input.text.clone();
-                            self.rename_current_chat(title)
+                            self.rename_current_chat(title);
+                            self.close_modal();
+                            self.focus(Section::Chats);
                         }
                         None => {}
                     },
@@ -179,6 +181,13 @@ impl App {
                     }
                     Action::Backspace => self.delete_current_chat(),
                     Action::Char('n') => self.open_modal(Modal::NewChat, None),
+                    Action::Char('r') => {
+                        if let Some(chat_idx) = self.chats.state.selected() {
+                            if let Some(chat) = self.chats.items.get(chat_idx) {
+                                self.open_modal(Modal::RenameChat, Some(chat.title.clone()));
+                            }
+                        }
+                    }
                     _ => {}
                 },
                 Section::Messages => {
@@ -187,11 +196,12 @@ impl App {
                             Action::Backspace => self.delete_message(),
                             Action::Up => chat.messages.prev(),
                             Action::Down => chat.messages.next(),
-                            Action::Char('n') => self.open_modal(Modal::NewChat, None),
-                            Action::Char('r') => {
-                                let title = chat.title.clone();
-                                self.open_modal(Modal::RenameChat, Some(title));
-                            }
+                            Action::Esc => self.blur(),
+                            _ => {}
+                        }
+                    } else {
+                        match action {
+                            Action::Backspace => self.delete_message(),
                             Action::Esc => self.blur(),
                             _ => {}
                         }
@@ -219,11 +229,19 @@ impl App {
         }
     }
 
+    pub fn rename_current_chat(&mut self, title: &str) {
+        if let Some(i) = self.chats.state.selected() {
+            if let Some(chat) = self.chats.items.get_mut(i) {
+                chat.title = title.to_string();
+            }
+        }
+    }
+
     pub fn blur(&mut self) {
         self.focus = None;
     }
 
-    pub async fn delete_message(&mut self) {
+    pub fn delete_message(&mut self) {
         if let Some(chat) = self.get_active_chat_mut() {
             if let Some(index) = chat.messages.state.selected() {
                 chat.messages.prev();
@@ -283,5 +301,4 @@ impl App {
             self.chats.prev();
         }
     }
-
 }
