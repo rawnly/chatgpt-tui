@@ -10,7 +10,7 @@ pub enum Modal {
     RenameChat,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Copy)]
 pub enum Section {
     Chats,
     Messages,
@@ -71,6 +71,20 @@ pub enum Action {
 }
 
 impl App {
+    #[allow(dead_code)]
+    pub fn is_focused(&self, s: Section) -> bool {
+        if let Some(focus) = self.focus {
+            return focus == s;
+        }
+
+        false
+    }
+
+    pub fn focus(&mut self, section: Section) {
+        self.focus = Some(section);
+        self.section = section;
+    }
+
     pub fn open_modal(&mut self, modal: Modal, input_value: Option<String>) {
         self.modal = Some(modal);
 
@@ -78,59 +92,71 @@ impl App {
         self.section = Section::Modal;
 
         if let Some(value) = input_value {
-            self.modal_input.text = value;
+            self.modal_input.set_value(value);
         }
     }
 
     pub fn close_modal(&mut self) {
-        self.focus = None;
-        self.section = Section::Chats;
         self.modal = None;
         self.modal_input.clear();
     }
 
-    pub async fn dispatch(&mut self, action: Action) -> anyhow::Result<()> {
+    pub fn select_current_chat(&mut self) {
+        if let Some(i) = self.active_chat_idx {
+            self.chats.select(i);
+        } else {
+            self.chats.select_first();
+        }
+    }
+
+    pub async fn dispatch(&mut self, action: Action) -> color_eyre::Result<()> {
         match &self.focus {
             None => match self.section {
-                Section::Chats => match action {
-                    Action::Enter => {
-                        self.focus = Some(Section::Chats);
-                        self.chats.next()
-                    }
-                    Action::Left | Action::Right => {
-                        self.section = Section::Messages;
-                    }
-                    _ => {}
-                },
+                Section::Chats if matches!(action, Action::Enter) => {
+                    self.focus(Section::Chats);
+                    self.select_current_chat()
+                }
+                Section::Messages | Section::Input
+                    if matches!(
+                        action,
+                        Action::Esc | Action::Left | Action::Right | Action::Char('c')
+                    ) =>
+                {
+                    self.focus(Section::Chats)
+                }
                 Section::Messages => match action {
-                    Action::Enter => {
-                        self.focus = Some(Section::Messages);
-                    }
-                    Action::Left | Action::Right => {
-                        self.section = Section::Chats;
-                    }
-                    Action::Up | Action::Down => {
-                        self.section = Section::Input;
-                    }
+                    Action::Enter => self.focus(Section::Messages),
+                    Action::Up | Action::Down => self.section = Section::Input,
+                    Action::Char('i') => self.focus(Section::Input),
                     _ => {}
                 },
                 Section::Input => match action {
-                    Action::Enter => {
-                        self.focus = Some(Section::Input);
-                    }
-                    Action::Left | Action::Right => {
-                        self.section = Section::Chats;
-                    }
-                    Action::Up | Action::Down => {
-                        self.section = Section::Messages;
-                    }
+                    Action::Char('m') => self.focus(Section::Messages),
+                    Action::Enter => self.focus(Section::Input),
+                    Action::Up | Action::Down => self.section = Section::Messages,
                     _ => {}
                 },
                 _ => {}
             },
             Some(section) => match section {
                 Section::Modal => match action {
-                    Action::Esc => self.close_modal(),
+                    Action::Esc => {
+                        match self.modal {
+                            Some(Modal::RenameChat) | Some(Modal::NewChat) => {
+                                self.section = Section::Chats;
+                                self.focus = Some(Section::Chats);
+
+                                self.select_current_chat();
+                            }
+                            _ => {}
+                        };
+
+                        self.close_modal();
+                    }
+                    Action::Char(to_enter) => self.modal_input.insert(to_enter),
+                    Action::Backspace => self.modal_input.delete(),
+                    Action::Left => self.modal_input.left(),
+                    Action::Right => self.modal_input.right(),
                     Action::Enter => match self.modal {
                         Some(Modal::NewChat) => {
                             let title = &self.modal_input.text.clone();
@@ -142,32 +168,23 @@ impl App {
                         }
                         None => {}
                     },
-                    Action::Char(to_enter) => self.modal_input.insert(to_enter),
-                    Action::Backspace => self.modal_input.delete(),
-                    Action::Left => self.modal_input.left(),
-                    Action::Right => self.modal_input.right(),
                     _ => {}
                 },
                 Section::Chats => match action {
                     Action::Up => self.chats.prev(),
                     Action::Down => self.chats.next(),
-                    Action::Esc => {
-                        self.focus = None;
-                        self.chats.unselect();
-                        self.active_chat_idx = None;
-                    }
                     Action::Enter => {
                         self.active_chat_idx = Some(self.chats.state.selected().unwrap());
-                        self.section = Section::Input;
-                        self.focus = Some(Section::Input);
+                        self.focus(Section::Input);
                     }
+                    Action::Backspace => self.delete_current_chat(),
+                    Action::Char('n') => self.open_modal(Modal::NewChat, None),
                     _ => {}
                 },
                 Section::Messages => {
                     if let Some(chat) = self.get_active_chat_mut() {
                         match action {
                             Action::Backspace => self.delete_message(),
-                            Action::Esc => self.focus = None,
                             Action::Up => chat.messages.prev(),
                             Action::Down => chat.messages.next(),
                             Action::Char('n') => self.open_modal(Modal::NewChat, None),
@@ -175,6 +192,7 @@ impl App {
                                 let title = chat.title.clone();
                                 self.open_modal(Modal::RenameChat, Some(title));
                             }
+                            Action::Esc => self.blur(),
                             _ => {}
                         }
                     }
@@ -201,7 +219,11 @@ impl App {
         }
     }
 
-    pub fn delete_message(&mut self) {
+    pub fn blur(&mut self) {
+        self.focus = None;
+    }
+
+    pub async fn delete_message(&mut self) {
         if let Some(chat) = self.get_active_chat_mut() {
             if let Some(index) = chat.messages.state.selected() {
                 chat.messages.prev();
@@ -242,12 +264,24 @@ impl App {
     pub fn new_chat(&mut self, title: &str) {
         self.chats.items.push(Chat::new(title));
         self.close_modal();
+
+        self.section = Section::Chats;
+        self.focus = Some(Section::Chats);
+
+        self.chats.select_last();
     }
 
-    pub fn rename_current_chat(&mut self, title: &str) {
-        if let Some(chat) = self.get_active_chat_mut() {
-            chat.title = title.to_string();
-            self.close_modal();
+    pub fn delete_current_chat(&mut self) {
+        if let Some(i) = self.chats.state.selected() {
+            self.chats.items.remove(i);
+
+            if self.chats.items.is_empty() {
+                self.chats.unselect();
+                return;
+            }
+
+            self.chats.prev();
         }
     }
+
 }

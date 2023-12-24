@@ -149,11 +149,14 @@ fn render_help(f: &mut Frame, app: &mut App, area: Rect) {
 fn render_modal(f: &mut Frame, app: &mut App) {
     let area = f.size();
 
+    let width = area.width / 2;
+    let height = 3;
+
     let popup_area = Rect {
-        x: area.width / 4,
-        y: area.height / 3,
-        width: area.width / 2,
-        height: area.height / 3,
+        x: area.width / 2 - width / 2,
+        y: area.height / 2 - 10,
+        width,
+        height,
     };
 
     let title = match app.modal {
@@ -162,16 +165,19 @@ fn render_modal(f: &mut Frame, app: &mut App) {
         _ => "",
     };
 
-    let popup = Paragraph::new(app.modal_input.text.as_str())
-        .style(Style::default())
-        .block(
-            Block::new()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::new().green()),
-        );
+    let popup = Popup::default()
+        .content(app.modal_input.text.as_str())
+        .title(title)
+        .style(Style::new().yellow())
+        .title_style(Style::new().white().bold())
+        .border_style(Style::new().green().bold());
 
     f.render_widget(popup, popup_area);
+
+    f.set_cursor(
+        popup_area.x + app.modal_input.cursor_position() as u16 + 1,
+        popup_area.y + 1,
+    );
 }
 
 pub fn render(f: &mut Frame, app: &mut App) {
