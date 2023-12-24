@@ -1,29 +1,29 @@
-use ratatui::{prelude::*, widgets::*};
+use ratatui::widgets::*;
 
 #[derive(Debug, Clone)]
 pub struct StatefulList<T> {
     pub state: ListState,
-    pub items: Vec<T>
+    pub items: Vec<T>,
 }
 
 impl<T> StatefulList<T> {
     pub fn with_items(items: Vec<T>) -> StatefulList<T> {
         StatefulList {
             state: ListState::default(),
-            items
+            items,
         }
     }
 
     pub fn next(&mut self) {
         let i = match self.state.selected() {
-           Some(i) => {
-               if i >= self.items.len() - 1 {
-                   0
-               } else {
-                   i + 1
-               }
-           },
-            None => 0
+            Some(i) => {
+                if i >= self.items.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
         };
 
         if !self.items.is_empty() {
@@ -39,8 +39,8 @@ impl<T> StatefulList<T> {
                 } else {
                     i - 1
                 }
-            },
-            None => 0
+            }
+            None => 0,
         };
 
         if !self.items.is_empty() {
@@ -58,3 +58,4 @@ impl<T> StatefulList<T> {
         }
     }
 }
+
