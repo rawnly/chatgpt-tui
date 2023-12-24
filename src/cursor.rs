@@ -10,7 +10,7 @@ impl Cursor {
     }
 
     pub fn reset(&mut self) {
-        self.position = 0;
+        self.move_to_start();
         self.input_length = 0;
     }
 
@@ -29,5 +29,12 @@ impl Cursor {
     pub fn is_at_start(&self) -> bool {
         self.position == 0
     }
-}
 
+    pub fn move_to_end(&mut self) {
+        self.position = self.input_length;
+    }
+
+    pub fn move_to_start(&mut self) {
+        self.position = 0;
+    }
+}

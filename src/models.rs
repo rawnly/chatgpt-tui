@@ -70,6 +70,10 @@ impl Chat {
         self.messages.items.push(message);
     }
 
+    pub fn remove_last_message(&mut self) {
+        self.messages.items.pop();
+    }
+
     pub fn with_messages(title: &str, messages: Vec<Message>) -> Self {
         Self {
             id: random_id(7),

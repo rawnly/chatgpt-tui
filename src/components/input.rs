@@ -7,6 +7,12 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn set_value(&mut self, text: String) {
+        self.text = text;
+        self.cursor.update_input_length(&self.text);
+        self.cursor.move_to_end();
+    }
+
     pub fn clear(&mut self) {
         self.text.clear();
         self.cursor.reset();

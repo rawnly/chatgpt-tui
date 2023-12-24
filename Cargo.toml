@@ -7,10 +7,18 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.76"
+better-panic = "0.3.0"
+color-eyre = "0.6.2"
 crossterm = "0.27.0"
+derive_setters = "0.1.6"
+human-panic = "1.2.2"
+libc = "0.2.151"
+log = "0.4.20"
 openai-api = "0.1.4"
 openai-rust = "1.5.2"
+postage = "0.5.0"
 rand = "0.8.5"
 ratatui = "0.25.0"
 regex = "1.10.2"
+strip-ansi-escapes = "0.2.0"
 tokio = { version = "1.35.1", features = ["full"] }

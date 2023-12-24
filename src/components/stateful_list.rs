@@ -6,6 +6,15 @@ pub struct StatefulList<T> {
     pub items: Vec<T>,
 }
 
+impl<T> Default for StatefulList<T> {
+    fn default() -> Self {
+        Self {
+            state: ListState::default(),
+            items: Vec::new(),
+        }
+    }
+}
+
 impl<T> StatefulList<T> {
     pub fn with_items(items: Vec<T>) -> StatefulList<T> {
         StatefulList {
@@ -29,6 +38,22 @@ impl<T> StatefulList<T> {
         if !self.items.is_empty() {
             self.state.select(Some(i))
         }
+    }
+
+    pub fn select(&mut self, i: usize) {
+        if !self.items.is_empty() && self.items.len() > i {
+            self.state.select(Some(i))
+        }
+    }
+
+    pub fn select_last(&mut self) {
+        if self.items.is_empty() {
+            self.unselect();
+            return;
+        }
+
+        let i = self.items.len() - 1;
+        self.state.select(Some(i));
     }
 
     pub fn prev(&mut self) {
@@ -58,4 +83,3 @@ impl<T> StatefulList<T> {
         }
     }
 }
-
