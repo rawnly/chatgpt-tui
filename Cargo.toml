@@ -18,7 +18,7 @@ openai-api = "0.1.4"
 openai-rust = "1.5.2"
 postage = "0.5.0"
 rand = "0.8.5"
-ratatui = "0.25.0"
+ratatui = { version = "0.25.0", features = ["unstable-rendered-line-info"] }
 regex = "1.10.2"
 strip-ansi-escapes = "0.2.0"
 tokio = { version = "1.35.1", features = ["full"] }

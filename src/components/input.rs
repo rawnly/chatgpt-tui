@@ -1,14 +1,38 @@
 use crate::cursor::Cursor;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Input {
     cursor: Cursor,
+    pub max_length: usize,
     pub text: String,
 }
 
+impl Default for Input {
+    fn default() -> Self {
+        Self {
+            cursor: Cursor::default(),
+            max_length: 250,
+            text: String::new(),
+        }
+    }
+}
+
 impl Input {
+    pub fn new(max_length: usize) -> Self {
+        Self {
+            max_length,
+            cursor: Cursor::default(),
+            text: String::new(),
+        }
+    }
+
     pub fn set_value(&mut self, text: String) {
-        self.text = text;
+        if text.len() > self.max_length {
+            self.text = text.split_at(self.max_length).0.to_string();
+        } else {
+            self.text = text
+        }
+
         self.cursor.update_input_length(&self.text);
         self.cursor.move_to_end();
     }
@@ -48,6 +72,10 @@ impl Input {
     }
 
     pub fn insert(&mut self, c: char) {
+        if self.text.len() >= self.max_length {
+            return;
+        }
+
         self.text.insert(self.cursor.position, c);
         self.cursor.update_input_length(&self.text);
         self.cursor.right();

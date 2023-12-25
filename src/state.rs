@@ -37,23 +37,10 @@ impl Default for App {
             loading: false,
             section: Section::Chats,
             focus: Some(Section::Chats),
-            input: Input::default(),
-            modal_input: Input::default(),
+            input: Input::new(250),
+            modal_input: Input::new(25),
             active_chat_idx: None,
-            chats: StatefulList::with_items(vec![
-                Chat::new("Demo"),
-                Chat::with_messages(
-                    "Christmas",
-                    vec![
-                        Message::user(
-                            "What is christmas?"
-                        ),
-                        Message::assistant(
-                            "Christmas is a religious holiday celebrating the birth of Jesus as well as a cultural and commercial event. Learn about the history of Christmas, Santa Claus, and holiday traditions worldwide."
-                        )
-                    ]
-                )
-            ])
+            chats: StatefulList::default(),
         }
     }
 }
@@ -122,7 +109,8 @@ impl App {
                         Action::Esc | Action::Left | Action::Right | Action::Char('c')
                     ) =>
                 {
-                    self.focus(Section::Chats)
+                    self.focus(Section::Chats);
+                    self.input.clear();
                 }
                 Section::Messages => match action {
                     Action::Enter => self.focus(Section::Messages),
@@ -160,7 +148,9 @@ impl App {
                     Action::Enter => match self.modal {
                         Some(Modal::NewChat) => {
                             let title = &self.modal_input.text.clone();
-                            self.new_chat(title)
+                            self.new_chat(title);
+                            self.close_modal();
+                            self.focus(Section::Chats);
                         }
                         Some(Modal::RenameChat) => {
                             let title = &self.modal_input.text.clone();
@@ -176,10 +166,13 @@ impl App {
                     Action::Up => self.chats.prev(),
                     Action::Down => self.chats.next(),
                     Action::Enter => {
-                        self.active_chat_idx = Some(self.chats.state.selected().unwrap());
-                        self.focus(Section::Input);
+                        if let Some(chat_idx) = self.chats.state.selected() {
+                            self.active_chat_idx = Some(chat_idx);
+                            self.focus(Section::Input);
+                        }
                     }
                     Action::Backspace => self.delete_current_chat(),
+                    Action::Char('N') => self.append_new_chat(),
                     Action::Char('n') => self.open_modal(Modal::NewChat, None),
                     Action::Char('r') => {
                         if let Some(chat_idx) = self.chats.state.selected() {
@@ -208,12 +201,12 @@ impl App {
                     }
                 }
                 Section::Input => match action {
-                    Action::Enter => self.submit_message().await?,
                     Action::Char(to_enter) => self.input.insert(to_enter),
+                    Action::Enter => self.submit_message().await?,
                     Action::Backspace => self.input.delete(),
                     Action::Left => self.input.left(),
                     Action::Right => self.input.right(),
-                    Action::Esc => self.focus = None,
+                    Action::Esc => self.blur(),
                     _ => {}
                 },
             },
@@ -279,13 +272,12 @@ impl App {
         Ok(())
     }
 
+    pub fn append_new_chat(&mut self) {
+        self.new_chat(&format!("chat #{}", self.chats.items.len()));
+    }
+
     pub fn new_chat(&mut self, title: &str) {
         self.chats.items.push(Chat::new(title));
-        self.close_modal();
-
-        self.section = Section::Chats;
-        self.focus = Some(Section::Chats);
-
         self.chats.select_last();
     }
 

@@ -79,6 +79,8 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
                         lines.append(&mut content_as_lines);
                     }
 
+                    lines.push(Line::raw(""));
+
                     ListItem::new(lines).style(Style::default())
                 })
                 .collect();
@@ -94,7 +96,8 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
-                );
+                )
+                .highlight_spacing(HighlightSpacing::WhenSelected);
 
             f.render_stateful_widget(messages, area, &mut chat.messages.state);
         }
@@ -104,46 +107,109 @@ fn render_messages(f: &mut Frame, app: &mut App, area: Rect) {
 fn render_chat_input(f: &mut Frame, app: &mut App, area: Rect) {
     let title = match app.loading {
         true => "Input (Loading...)".to_string(),
-        false => format!("Input ({}/250)", app.input.text.len()),
+        false => format!("Input ({}/{})", app.input.text.len(), app.input.max_length),
     };
 
-    f.render_widget(
-        Paragraph::new(app.input.text.to_string())
-            .style(match app.focus {
-                Some(Section::Input) => Style::default().fg(Color::Green),
-                _ => Style::default(),
-            })
-            .block(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .border_style(get_section_border_style(app, Section::Input))
-                    .title(title),
-            ),
-        area,
-    );
+    let widget = Paragraph::new(app.input.text.to_string())
+        .style(match app.focus {
+            Some(Section::Input) => Style::default().fg(Color::Green),
+            _ => Style::default(),
+        })
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::new()
+                .borders(Borders::ALL)
+                .border_style(get_section_border_style(app, Section::Input))
+                .title(title),
+        );
+
+    let lines = widget.line_count(area.width) as u16;
+
+    f.render_widget(widget, area);
+
+    let cursor_position = app.input.cursor_position() as u16;
 
     if matches!(app.focus, Some(Section::Input)) {
-        f.set_cursor(area.x + app.input.cursor_position() as u16 + 1, area.y + 1);
+        f.set_cursor(area.x + cursor_position + 1, area.y + lines);
     }
 }
 
-fn render_help(f: &mut Frame, app: &mut App, area: Rect) {
-    let mut text = match app.section {
-        Section::Chats => "Q to quit, ENTER to select",
-        Section::Messages => "Q to quit, ENTER to select",
-        Section::Input => "Q to quit, ENTER to select",
-        _ => "Q to quit",
+fn command<'a>(input: &'a str, description: &'a str, last: bool) -> Vec<Span<'a>> {
+    let command_style = Style::new().yellow().bold();
+    let description_style = Style::new().dim();
+
+    let mut v = vec![
+        Span::styled(input, command_style),
+        Span::raw(" "),
+        Span::styled(description, description_style),
+    ];
+
+    if !last {
+        v.push(Span::raw(" | "));
+    }
+
+    v
+}
+
+type Command = (&'static str, &'static str);
+
+fn commands<'a>(commands: &[Command]) -> Vec<Span<'a>> {
+    let items: Vec<Span<'a>> = commands
+        .iter()
+        .enumerate()
+        .flat_map(|(idx, (cmd, desc))| command(cmd, desc, idx == commands.len() - 1))
+        .collect();
+
+    items
+}
+
+fn render_help<'a>(f: &mut Frame, app: &mut App, area: Rect) {
+    let quit: Command = ("q", "quit");
+    let focus: Command = ("Enter", "focus");
+    let blur: Command = ("Esc", "blur");
+    let delete: Command = ("Backspace", "delete");
+    let vertical_movement: Command = ("H/J", "move");
+
+    let generic_help = commands(&[focus, quit]);
+
+    let mut text: Vec<Span<'a>> = match app.section {
+        Section::Messages => commands(&[
+            focus,
+            vertical_movement,
+            ("i", "input"),
+            ("c", "chats"),
+            quit,
+        ]),
+        Section::Input => commands(&[
+            focus,
+            vertical_movement,
+            ("m", "messages"),
+            ("c", "chats"),
+            quit,
+        ]),
+        _ => generic_help,
     };
 
     if let Some(focus) = &app.focus {
         text = match focus {
-            Section::Chats => "Esc to unfocus, Enter to select, H/J to move, N new, R rename",
-            Section::Messages => "Esc to unfocus, Backspace to remove, H/J to move",
-            Section::Input | Section::Modal => "Esc to unfocus",
+            Section::Chats => commands(&[
+                blur,
+                vertical_movement,
+                ("n", "new"),
+                ("N", "quick new"),
+                ("r", "rename"),
+                ("Enter", "open"),
+                delete,
+            ]),
+            Section::Messages => commands(&[blur, vertical_movement, delete]),
+            Section::Input | Section::Modal => commands(&[blur, ("Enter", "submit")]),
         }
     }
 
-    let help = Paragraph::new(text).style(Style::default());
+    let content: Line<'a> = text.into();
+    let help = Paragraph::new(content)
+        .alignment(Alignment::Center)
+        .block(Block::new().title(""));
 
     f.render_widget(help, area);
 }
@@ -167,11 +233,18 @@ fn render_modal(f: &mut Frame, app: &mut App) {
         _ => "",
     };
 
+    let max_chars_title = Line::from(vec![
+        app.modal_input.text.len().to_string().yellow(),
+        "/".dim(),
+        app.modal_input.max_length.to_string().dim(),
+    ]);
+
     let popup = Popup::default()
         .content(app.modal_input.text.as_str())
         .title(title)
-        .style(Style::new().yellow())
+        .subtitle(max_chars_title)
         .title_style(Style::new().white().bold())
+        .style(Style::new().yellow())
         .border_style(Style::new().green().bold());
 
     f.render_widget(popup, popup_area);
@@ -194,9 +267,9 @@ pub fn render(f: &mut Frame, app: &mut App) {
             // help
             Constraint::Percentage(5),
             // messages
-            Constraint::Percentage(85),
+            Constraint::Percentage(88),
             // input
-            Constraint::Percentage(10),
+            Constraint::Percentage(7),
         ])
         .split(main_layout[1]);
 
