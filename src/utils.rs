@@ -27,8 +27,8 @@ pub fn setup_panic_handler() -> Result<()> {
                 homepage: env!("CARGO_PKG_HOMEPAGE").into(),
             };
 
-            let file_Path = handle_dump(&meta, panic_info);
-            print_msg(file_pathm & meta)
+            let file_path = handle_dump(&meta, panic_info);
+            print_msg(file_path, &meta)
                 .expect("human-panic: printing error message to console failed.");
 
             eprintln!("{}", panic_hook.panic_report(panic_info));
