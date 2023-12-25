@@ -1,4 +1,3 @@
-use color_eyre::owo_colors::OwoColorize;
 use derive_setters::Setters;
 use ratatui::{
     prelude::*,
